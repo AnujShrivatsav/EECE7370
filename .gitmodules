@@ -1,0 +1,3 @@
+[submodule "DiffComplete"]
+	path = DiffComplete
+	url = https://github.com/dvlab-research/DiffComplete.git
