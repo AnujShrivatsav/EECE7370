@@ -1,0 +1,114 @@
+# Core dependencies
+argparse
+argon2-cffi
+attrs
+backcall
+beautifulsoup4
+bleach
+certifi
+cffi
+charset-normalizer
+cryptography
+decorator
+defusedxml
+entrypoints
+executing
+idna
+importlib-resources
+ipykernel
+ipython
+ipython-genutils
+ipywidgets
+jedi
+jinja2
+jsonschema
+jupyter-client
+jupyter-core
+jupyterlab-pygments
+jupyterlab-widgets
+markupsafe
+matplotlib-inline
+mistune
+nbclient
+nbconvert
+nbformat
+nest-asyncio
+notebook
+numpy
+pandas
+parso
+pexpect
+pickleshare
+pillow
+prompt-toolkit
+ptyprocess
+pure-eval
+pycparser
+pygments
+pyopenssl
+pyparsing
+pyrsistent
+python-dateutil
+pyzmq
+requests
+send2trash
+setuptools
+six
+soupsieve
+stack-data
+terminado
+testpath
+tk
+tornado
+traitlets
+typing-extensions
+urllib3
+wcwidth
+webencodings
+wheel
+widgetsnbextension
+zipp
+
+# Machine learning and numerical libraries
+torch
+torchaudio
+torchvision
+scipy
+scikit-image
+scikit-learn
+
+# Visualization libraries
+matplotlib
+k3d
+
+# 3D libraries and geometry processing
+open3d
+plyfile
+trimesh
+pymcubes
+
+# Additional libraries for neural networks and optimization
+tensorboardX
+addict
+
+# Logging and job management
+hydra-core
+hydra-submitit-launcher
+
+# Performance and threading libraries
+tqdm
+
+# Parallel processing tools
+portalocker
+
+# Custom CUDA extensions and bindings
+pybind11
+ccimport
+cumm-cu113
+spconv-cu113
+
+# Miscellaneous utilities
+termcolor
+fire
+lark
+
