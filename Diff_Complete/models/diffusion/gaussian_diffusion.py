@@ -313,11 +313,11 @@ class GaussianDiffusion:
 
         B, C = x.shape[:2]
         assert t.shape == (B,)
-        hint = model_kwargs['hint']
-        control = control_model(x, hint, t)
-        control_scales = [1.0] * len(control)
-        control = [c * scale for c, scale in zip(control, control_scales)]
-        model_output = model(x, self._scale_timesteps(t), control,
+        # hint = model_kwargs['hint']
+        # control = control_model(x, hint, t)
+        # control_scales = [1.0] * len(control)
+        # control = [c * scale for c, scale in zip(control, control_scales)]
+        model_output = model(x, self._scale_timesteps(t), control= None,
                              **model_kwargs)  # same size with [b, 1, 32, 32, 32]
 
         if self.model_var_type in [ModelVarType.LEARNED, ModelVarType.LEARNED_RANGE]:
@@ -778,7 +778,7 @@ class GaussianDiffusion:
             x_start=x_start, x_t=x_t, t=t
         )
         out = self.p_mean_variance(
-            model, x_t, t, clip_denoised=clip_denoised, model_kwargs=model_kwargs
+            model= model, x= x_t, t= t, control_model= None, clip_denoised=clip_denoised, model_kwargs=model_kwargs
         )
         kl = normal_kl(
             true_mean, true_log_variance_clipped, out["mean"], out["log_variance"]
@@ -830,10 +830,10 @@ class GaussianDiffusion:
             if self.loss_type == LossType.RESCALED_KL:
                 terms["loss"] *= self.num_timesteps
         elif self.loss_type == LossType.MSE or self.loss_type == LossType.RESCALED_MSE:
-            control = control_model(x=x_t, hint=hint, timesteps=t)
-            control_scales = [1.0] * len(control)
-            control = [c * scale for c, scale in zip(control, control_scales)]
-            model_output = model(x_t, self._scale_timesteps(t), control, **model_kwargs)  # same size with [b, 1, 32, 32, 32]
+            # control = control_model(x=x_t, hint=hint, timesteps=t)
+            # control_scales = [1.0] * len(control)
+            # control = [c * scale for c, scale in zip(control, control_scales)]
+            model_output = model(x_t, self._scale_timesteps(t), control= None, **model_kwargs)  # same size with [b, 1, 32, 32, 32]
             if self.model_var_type in [
                 ModelVarType.LEARNED,
                 ModelVarType.LEARNED_RANGE,

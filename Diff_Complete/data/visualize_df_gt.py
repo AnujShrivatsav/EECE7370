@@ -13,9 +13,9 @@ def get_shape_df(path):
 
 if __name__ == '__main__':
 
-    base_path = "/home/patela66/project/DiffComplete/data/3d_epn/shapenet_dim32_df"
-    cls = '03001627'
-    out_path = "/home/patela66/project/DiffComplete/data/3d_epn/vis_df_gt"
+    base_path = "/home/patela66/project/AdvCV/EECE7370/Diff_Complete/data/3d_epn/shapenet_dim32_df"
+    cls = '04530566'
+    out_path = "/home/patela66/project/AdvCV/EECE7370/Diff_Complete/data/3d_epn/vis_df_gt"
 
     df_path = osp.join(base_path, cls)
     df_files = os.listdir(df_path)

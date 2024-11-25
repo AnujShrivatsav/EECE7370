@@ -58,7 +58,7 @@ class ControlledEPNDataset(DictDataset):
         return '_'.join(Path(self.data_paths[iteration]).stem.split('_')[:2])
 
     def load(self, filename):
-        return torch.load(filename)
+        return torch.load(filename, weights_only=False)
 
     def __len__(self):
         return len(self.data_paths)

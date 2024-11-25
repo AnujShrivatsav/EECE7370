@@ -57,7 +57,7 @@ data:
   class_id: '02933112'
   dataset: ControlledEPNDataset
   train_file:
-  data_dir: /home/patela66/project/DiffComplete/data/3d_epn
+  data_dir: /home/patela66/project/AdvCV/EECE7370/Diff_Complete/data/3d_epn
   collate_fn:
   input_transform:
   targer_transform:
@@ -72,7 +72,7 @@ train:
   debug: False
   max_iter: 300000
   is_train: True
-  stat_freq: 50
+  stat_freq: 10
   val_freq: 20000
   empty_cache_freq: 1
   overwrite_weights: False
@@ -107,7 +107,7 @@ exp:
   num_workers: 32
 
   skip_validate: True
-  log_dir: /home/patela66/project/DiffComplete/exps/epn_${data.class_id}_${exp.representation}_${exp.res}
+  log_dir: /home/patela66/project/AdvCV/EECE7370/Diff_Complete/exps/epn_${data.class_id}_${exp.representation}_${exp.res}
 
 
 ################################################################################
