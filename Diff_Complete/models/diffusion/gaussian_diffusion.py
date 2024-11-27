@@ -798,7 +798,7 @@ class GaussianDiffusion:
         return {"output": output, "pred_xstart": out["pred_xstart"]}
 
 
-    def training_losses(self, model, control_model, x_start, hint, t, model_kwargs=None, noise=None, weighted_loss=False):
+    def training_losses(self, model, control_model, x_start, hint, image, t, model_kwargs=None, noise=None, weighted_loss=False):
         """
         Compute training losses for a single timestep.
         :param model: the model to evaluate loss on.
@@ -833,7 +833,7 @@ class GaussianDiffusion:
             # control = control_model(x=x_t, hint=hint, timesteps=t)
             # control_scales = [1.0] * len(control)
             # control = [c * scale for c, scale in zip(control, control_scales)]
-            model_output = model(x_t, self._scale_timesteps(t), control= None, **model_kwargs)  # same size with [b, 1, 32, 32, 32]
+            model_output = model(x_t, image, self._scale_timesteps(t), control= None, **model_kwargs)  # same size with [b, 1, 32, 32, 32]
             if self.model_var_type in [
                 ModelVarType.LEARNED,
                 ModelVarType.LEARNED_RANGE,

@@ -6,6 +6,7 @@ import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+import clip
 
 from models.modules.fp16_util import convert_module_to_f16, convert_module_to_f32
 from models.modules.nn import (
@@ -37,10 +38,13 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, x, emb):
+    def forward(self, x, emb, img_emb=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
+            elif isinstance(layer, nn.Sequential) and img_emb is not None:
+                # This is for the image_embed layer
+                x = x + layer(img_emb)
             else:
                 x = layer(x)
         return x
@@ -299,6 +303,8 @@ class ResUNet(nn.Module):
         num_heads_upsample=-1,
         use_scale_shift_norm=False,
         activation = None,
+        CLIP = None, 
+        CLIP_emb_size = 512
     ):
         super().__init__()
 
@@ -324,6 +330,13 @@ class ResUNet(nn.Module):
             self.activation,
             linear(time_embed_dim, time_embed_dim),
         )
+        self.CLIP_model, self.preprocess = clip.load(CLIP)
+
+        self.image_embed = nn.Sequential(
+            # linear(CLIP_emb_size, time_embed_dim),
+            self.activation,
+            linear(CLIP_emb_size, time_embed_dim),
+        )
 
         if self.num_classes is not None:
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
@@ -331,7 +344,8 @@ class ResUNet(nn.Module):
         self.input_blocks = nn.ModuleList(
             [
                 TimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1), 
+                    self.image_embed
                 )
             ]
         )
@@ -449,7 +463,7 @@ class ResUNet(nn.Module):
         return torch.float32 # FIXED
         # return next(self.input_blocks.parameters()).dtype
 
-    def forward(self, x, timesteps, y=None, low_cond = None):
+    def forward(self, x, timesteps, img_emb, y=None, low_cond = None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -476,7 +490,7 @@ class ResUNet(nn.Module):
 
         h = x.type(self.inner_dtype)
         for module in self.input_blocks:
-            h = module(h, emb)
+            h = module(h, emb, img_emb)
             hs.append(h)
         h = self.middle_block(h, emb)
         for module in self.output_blocks:
@@ -529,14 +543,18 @@ class ResUNet(nn.Module):
 
 
 class ControlledUNet(ResUNet):
-    def forward(self, x, timesteps=None, control=None, only_mid_control=False, **kwargs):
+    def forward(self, x, image=None, timesteps=None, control=None, only_mid_control=False, **kwargs):
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels)
         emb = self.time_embed(t_emb)
+        image_emb = self.CLIP_model.encode(self.preprocess(image))
 
         h = x.type(self.inner_dtype)
-        for module in self.input_blocks:
-            h = module(h, emb)
+        for i, module in enumerate(self.input_blocks):
+            if i==0:
+                h = module(h, emb, img_emb)
+            else:
+                h = module(h, emb)
             hs.append(h)
         h = self.middle_block(h, emb)
 

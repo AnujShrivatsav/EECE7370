@@ -51,7 +51,8 @@ def initialize_network(NetClass, config):
     attention_resolutions=config.net.attention_resolutions,  # []
     dropout=0,
     dims=3,
-    activation=config.net.unet_activation if hasattr(config.net, 'unet_activation') else None
+    activation=config.net.unet_activation if hasattr(config.net, 'unet_activation') else None, 
+    CLIP= config.net.CLIP
   )
 
   return model
