@@ -3,9 +3,11 @@ import numpy as np
 import os.path as osp
 import glob
 import logging
+from pathlib import Path
 from torch.utils.data import Dataset
 from datasets.dataset import DictDataset, DatasetPhase, str2datasetphase_type
 from lib.utils import read_txt
+from PIL import Image
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -39,6 +41,8 @@ class ControlledEPNDataset(DictDataset):
         self.trunc_distance = config.data.trunc_distance
         self.log_df = config.data.log_df
         self.data_paths = data_paths
+        self.image_root = Path(config.data.image_dir)
+        self.image_type = config.data.image_type
         self.augment_data = augment_data
         self.input_transform = input_transform
         self.target_transform = target_transform
@@ -59,12 +63,21 @@ class ControlledEPNDataset(DictDataset):
 
     def load(self, filename):
         return torch.load(filename, weights_only=False)
+    
+    def load_image(self, filename):
+        random_idx = np.random.randint(0, 5)
+        image_idx = f"{random_idx:02d}"
+        image_path = filename / f"{image_idx}.png"
+
+        return np.array(Image.open(image_path))[..., :3]
 
     def __len__(self):
         return len(self.data_paths)
 
     def __getitem__(self, index: int):
         filename = self.data_root / self.data_paths[index]
+        image_rendering_path = self.image_root / self.data_paths[index].split('__')[0] / self.image_type
+        rendered_image = self.load_image(image_rendering_path)
         scan_id = osp.basename(filename).replace(self.suffix, '')
         input_sdf, gt_df = self.load(filename)
 
@@ -81,4 +94,4 @@ class ControlledEPNDataset(DictDataset):
         if self.target_transform is not None:
             gt_df = self.target_transform(gt_df)
 
-        return scan_id, input_sdf, gt_df
+        return scan_id, rendered_image, input_sdf, gt_df

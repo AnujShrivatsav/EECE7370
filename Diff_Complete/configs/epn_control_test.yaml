@@ -56,6 +56,7 @@ data:
   per_class: True
   class_id: '03001627'
   dataset: ControlledEPNDataset
+  image_dir: data/3d_epn/images
   train_file:
   data_dir: data/3d_epn
   collate_fn:
