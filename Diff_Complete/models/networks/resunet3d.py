@@ -559,8 +559,8 @@ class ControlledUNet(ResUNet):
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels)
         emb = self.time_embed(t_emb)
-        # image_emb = self.CLIP_model.encode_image(self.preprocess(image))
-        image_emb = self.CLIP_model.encode_image(image.to(x.device))
+        image_emb = self.CLIP_model.encode_image(self.preprocess(image.to(x.device)))
+        # image_emb = self.CLIP_model.encode_image(image.to(x.device))
 
         h = x.type(self.inner_dtype)
         image_emb = image_emb.type(self.inner_dtype)
