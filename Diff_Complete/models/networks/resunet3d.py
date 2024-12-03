@@ -44,7 +44,11 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, nn.Sequential) and img_emb is not None:
                 # This is for the image_embed layer
-                x = x + layer(img_emb)
+                img_emb = layer(img_emb)
+                while len(img_emb.shape) < len(x.shape):
+                    img_emb = img_emb[..., None]
+                # x = x + layer(img_emb)
+                x += img_emb
             else:
                 x = layer(x)
         return x
@@ -332,11 +336,17 @@ class ResUNet(nn.Module):
         )
         self.CLIP_model, self.preprocess = clip.load(CLIP)
 
+        for param in self.CLIP_model.parameters():
+            param.requires_grad = False
+        
+        self.CLIP_model.eval()
+        
         self.image_embed = nn.Sequential(
             # linear(CLIP_emb_size, time_embed_dim),
-            self.activation,
-            linear(CLIP_emb_size, time_embed_dim),
+            self.activation, 
+            linear(CLIP_emb_size, model_channels),
         )
+
 
         if self.num_classes is not None:
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
@@ -344,7 +354,7 @@ class ResUNet(nn.Module):
         self.input_blocks = nn.ModuleList(
             [
                 TimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1), 
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1),
                     self.image_embed
                 )
             ]
@@ -446,6 +456,7 @@ class ResUNet(nn.Module):
         self.input_blocks.apply(convert_module_to_f16)
         self.middle_block.apply(convert_module_to_f16)
         self.output_blocks.apply(convert_module_to_f16)
+        self.image_embed.apply(convert_module_to_f16)
 
     def convert_to_fp32(self):
         """
@@ -454,6 +465,7 @@ class ResUNet(nn.Module):
         self.input_blocks.apply(convert_module_to_f32)
         self.middle_block.apply(convert_module_to_f32)
         self.output_blocks.apply(convert_module_to_f32)
+        self.image_embed.apply(convert_module_to_f32)
 
     @property
     def inner_dtype(self):
@@ -547,12 +559,14 @@ class ControlledUNet(ResUNet):
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels)
         emb = self.time_embed(t_emb)
-        image_emb = self.CLIP_model.encode(self.preprocess(image))
+        # image_emb = self.CLIP_model.encode_image(self.preprocess(image))
+        image_emb = self.CLIP_model.encode_image(image.to(x.device))
 
         h = x.type(self.inner_dtype)
+        image_emb = image_emb.type(self.inner_dtype)
         for i, module in enumerate(self.input_blocks):
             if i==0:
-                h = module(h, emb, img_emb)
+                h = module(h, emb, image_emb)
             else:
                 h = module(h, emb)
             hs.append(h)
