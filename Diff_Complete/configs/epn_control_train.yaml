@@ -35,6 +35,7 @@ net:
   controlnet: ControlNet
   control_weights:
   sd_locked: True
+  CLIP: 'ViT-B/16'
 
 optimizer:
   optimizer: Adam
@@ -58,6 +59,8 @@ data:
   dataset: ControlledEPNDataset
   train_file:
   data_dir: /home/patela66/project/AdvCV/EECE7370/Diff_Complete/data/3d_epn
+  image_dir: /home/patela66/project/AdvCV/EECE7370/Diff_Complete/data/3d_epn/image
+  image_type: 'easy'
   collate_fn:
   input_transform:
   targer_transform:
@@ -102,7 +105,7 @@ misc:
 exp:
   res: 32
   representation: tsdf
-  batch_size: 2
+  batch_size: 4
   num_gpus: 1
   num_workers: 32
 
