@@ -260,13 +260,8 @@ class DiffusionTrainer:
                 mse_loss = 0.0
                 # Get training data
                 data_timer.tic()
-                scan_id, input_sdf, gt_df = next(data_iter)
-                '''
-                render here images of size 224x224 only once and store them during first epoch
-                This helps run the renderer only once and then sample one for each 3d shape during each epoch
-                ''' 
+                _, rendered_images, input_sdf, gt_df = next(data_iter)
                 shape_gt = gt_df.unsqueeze(1).to(self.cur_device)
-                rendered_images = torch.randn((shape_gt.shape[0], 3, 224, 224))
 
                 if self.config.data.dataset != 'ControlledEPNDataset':
                     input_sdf = input_sdf.unsqueeze(1).to(self.cur_device)
