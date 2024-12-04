@@ -273,13 +273,13 @@ class DiffusionTrainer:
                 fw_timer.tic()
 
                 if hasattr(self.config.train, 'mix_precision') and self.config.train.mix_precision:
-                    with autocast():
+                    with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
                         t, t_weights = self.sampler.sample(shape_gt.size(0), device=self.cur_device)
                         iterative_loss = self.diffusion_model.training_losses(model=self.model,
                                                                               control_model=self.control_model,
                                                                               x_start=shape_gt,
                                                                               hint=input_sdf,
-                                                                              image=rendered_images,
+                                                                              image=rendered_images.numpy(),
                                                                               t=t,
                                                                               weighted_loss=self.config.train.weighted_loss)
                         mse_loss += torch.mean(iterative_loss['loss'] * t_weights)
@@ -289,7 +289,7 @@ class DiffusionTrainer:
                                                                           control_model=self.control_model,
                                                                           x_start=shape_gt,
                                                                           hint=input_sdf,
-                                                                          image=rendered_images,
+                                                                          image=rendered_images.numpy(),
                                                                           t=t,
                                                                           weighted_loss=self.config.train.weighted_loss)
                     mse_loss += torch.mean(iterative_loss['loss'] * t_weights)

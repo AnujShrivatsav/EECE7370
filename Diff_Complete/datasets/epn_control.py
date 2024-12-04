@@ -68,8 +68,7 @@ class ControlledEPNDataset(DictDataset):
         random_idx = np.random.randint(0, 5)
         image_idx = f"{random_idx:02d}"
         image_path = filename / f"{image_idx}.png"
-
-        return np.array(Image.open(image_path))[..., :3]
+        return np.array(Image.open(image_path).convert('RGB'))
 
     def __len__(self):
         return len(self.data_paths)

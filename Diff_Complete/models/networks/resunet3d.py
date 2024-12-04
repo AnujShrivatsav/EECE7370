@@ -7,6 +7,7 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 import clip
+from PIL import Image
 
 from models.modules.fp16_util import convert_module_to_f16, convert_module_to_f32
 from models.modules.nn import (
@@ -559,11 +560,15 @@ class ControlledUNet(ResUNet):
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels)
         emb = self.time_embed(t_emb)
-        image_emb = self.CLIP_model.encode_image(self.preprocess(image.to(x.device)))
-        # image_emb = self.CLIP_model.encode_image(image.to(x.device))
+        
+        # Move preprocessing to GPU
+        pil_images = [Image.fromarray((img).astype(np.uint8)) for img in image]
+        preprocessed_images = torch.stack([self.preprocess(pil_img) for pil_img in pil_images]).to(x.device)
+        image_emb = self.CLIP_model.encode_image(preprocessed_images)
 
         h = x.type(self.inner_dtype)
         image_emb = image_emb.type(self.inner_dtype)
+        
         for i, module in enumerate(self.input_blocks):
             if i==0:
                 h = module(h, emb, image_emb)
