@@ -74,13 +74,14 @@ def test(model, control_model, data_loader, config):
 
       with torch.no_grad():
           for m in range(test_cnt):
-              scan_ids, observe, gt = next(data_iter)
+              scan_ids, rendered_images, observe, gt = next(data_iter)
               sign = observe[:, 1].numpy()
               bs = observe.size(0)
               noise = None
               model_kwargs = {
                   'noise_save_path': os.path.join(noise_folder, f'{scan_ids[0]}noise.pt')}
               model_kwargs["hint"] = observe.to(cur_device) # torch.Size([1, 2, 32, 32, 32])
+              model_kwargs["image"] = rendered_images.numpy()
 
               # # # Visualize range scans (by SDF)
               # for i in range(len(observe)):

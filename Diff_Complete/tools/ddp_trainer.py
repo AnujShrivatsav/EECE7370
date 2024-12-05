@@ -222,8 +222,8 @@ class DiffusionTrainer:
                            self.best, self.scaler, postfix="best")
                 logging.info("Current best score: {:.3f} at iter {}".format(self.best, self.best_iter))
 
-        checkpoint(self.model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
-        checkpoint_control(self.control_model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
+        # checkpoint(self.model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
+        # checkpoint_control(self.control_model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
 
     def train(self):
         ## To be checked

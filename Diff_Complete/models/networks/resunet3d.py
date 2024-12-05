@@ -556,7 +556,8 @@ class ResUNet(nn.Module):
 
 
 class ControlledUNet(ResUNet):
-    def forward(self, x, image=None, timesteps=None, control=None, only_mid_control=False, **kwargs):
+    def forward(self, x, timesteps=None, control=None, only_mid_control=False, **kwargs):
+        image = kwargs['image']
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels)
         emb = self.time_embed(t_emb)
