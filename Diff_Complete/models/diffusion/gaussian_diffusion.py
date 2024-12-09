@@ -317,8 +317,9 @@ class GaussianDiffusion:
         # control = control_model(x, hint, t)
         # control_scales = [1.0] * len(control)
         # control = [c * scale for c, scale in zip(control, control_scales)]
-        model_output = model(x, self._scale_timesteps(t), control= None,
-                             **model_kwargs)  # same size with [b, 1, 32, 32, 32]
+        if 'control' in model_kwargs:
+            del model_kwargs['control']
+        model_output = model(x, self._scale_timesteps(t), **model_kwargs)  # same size with [b, 1, 32, 32, 32]
 
         if self.model_var_type in [ModelVarType.LEARNED, ModelVarType.LEARNED_RANGE]:
             assert model_output.shape == (B, C * 2, *x.shape[2:])
@@ -556,7 +557,7 @@ class GaussianDiffusion:
             device = next(model.parameters()).device
         assert isinstance(shape, (tuple, list))
 
-        if noise is not None:
+        if noise is not None: # Why are we doing this?
             img = noise
 
         else:
@@ -812,6 +813,10 @@ class GaussianDiffusion:
         """
         if model_kwargs is None:
             model_kwargs = {}
+        
+        # Add image to model_kwargs
+        model_kwargs['image'] = image
+
         if noise is None:
             noise = th.randn_like(x_start)  # torch.Size([b, 1, 32, 32, 32])
         x_t = self.q_sample(x_start, t, noise=noise)
@@ -833,7 +838,9 @@ class GaussianDiffusion:
             # control = control_model(x=x_t, hint=hint, timesteps=t)
             # control_scales = [1.0] * len(control)
             # control = [c * scale for c, scale in zip(control, control_scales)]
-            model_output = model(x_t, image, self._scale_timesteps(t), control= None, **model_kwargs)  # same size with [b, 1, 32, 32, 32]
+            if 'control' in model_kwargs:
+                del model_kwargs['control']
+            model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)  # same size with [b, 1, 32, 32, 32]
             if self.model_var_type in [
                 ModelVarType.LEARNED,
                 ModelVarType.LEARNED_RANGE,

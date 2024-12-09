@@ -1,25 +1,25 @@
+import math
 from abc import abstractmethod
 
-import math
+import clip
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-import clip
-from PIL import Image
-
 from models.modules.fp16_util import convert_module_to_f16, convert_module_to_f32
 from models.modules.nn import (
     SiLU,
+    avg_pool_nd,
+    checkpoint,
     conv_nd,
     linear,
-    avg_pool_nd,
-    zero_module,
     normalization,
     timestep_embedding,
-    checkpoint,
+    zero_module,
 )
+from PIL import Image
+
 
 class TimestepBlock(nn.Module):
     """
@@ -42,14 +42,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     def forward(self, x, emb, img_emb=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
-                x = layer(x, emb)
-            elif isinstance(layer, nn.Sequential) and img_emb is not None:
-                # This is for the image_embed layer
-                img_emb = layer(img_emb)
-                while len(img_emb.shape) < len(x.shape):
-                    img_emb = img_emb[..., None]
-                # x = x + layer(img_emb)
-                x += img_emb
+                x = layer(x, emb, img_emb)
             else:
                 x = layer(x)
         return x
@@ -151,6 +144,14 @@ class ResBlock(TimestepBlock):
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
             ),
         )
+        self.image_emb_layers = nn.Sequential(
+            activation,
+            linear(
+                emb_channels,  # CLIP embedding size
+                2 * self.out_channels if use_scale_shift_norm else self.out_channels,
+            ),
+        )
+
         self.out_layers = nn.Sequential(
             normalization(self.out_channels),
             activation,
@@ -169,29 +170,45 @@ class ResBlock(TimestepBlock):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    def forward(self, x, emb):
+    def forward(self, x, emb, img_emb=None):
         """
-        Apply the block to a Tensor, conditioned on a timestep embedding.
+        Apply the block to a Tensor, conditioned on a timestep embedding and image embedding.
         :param x: an [N x C x ...] Tensor of features.
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
+        :param img_emb: an [N x 512] Tensor of CLIP image embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
         return checkpoint(
-            self._forward, (x, emb), self.parameters(), self.use_checkpoint
+            self._forward, (x, emb, img_emb), self.parameters(), self.use_checkpoint
         )
 
-    def _forward(self, x, emb):
+    def _forward(self, x, emb, img_emb=None):
         h = self.in_layers(x)
+        
+        # Process timestep embedding
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
+            
+        # Process image embedding if provided
+        if img_emb is not None:
+            img_emb_out = self.image_emb_layers(img_emb).type(h.dtype)
+            while len(img_emb_out.shape) < len(h.shape):
+                img_emb_out = img_emb_out[..., None]
+            
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
+            if img_emb is not None:
+                img_scale, img_shift = th.chunk(img_emb_out, 2, dim=1)
+                scale = scale + img_scale
+                shift = shift + img_shift
             h = out_norm(h) * (1 + scale) + shift
             h = out_rest(h)
         else:
             h = h + emb_out
+            if img_emb is not None:
+                h = h + img_emb_out
             h = self.out_layers(h)
         return self.skip_connection(x) + h
 
@@ -335,6 +352,12 @@ class ResUNet(nn.Module):
             self.activation,
             linear(time_embed_dim, time_embed_dim),
         )
+
+        self.image_emb = nn.Sequential(
+            self.activation,
+            linear(CLIP_emb_size, time_embed_dim)
+        )
+
         self.CLIP_model, self.preprocess = clip.load(CLIP)
 
         for param in self.CLIP_model.parameters():
@@ -342,11 +365,11 @@ class ResUNet(nn.Module):
         
         self.CLIP_model.eval()
         
-        self.image_embed = nn.Sequential(
-            # linear(CLIP_emb_size, time_embed_dim),
-            self.activation, 
-            linear(CLIP_emb_size, model_channels),
-        )
+        # self.image_embed = nn.Sequential(
+        #     # linear(CLIP_emb_size, time_embed_dim),
+        #     self.activation, 
+        #     linear(CLIP_emb_size, model_channels),
+        # )
 
 
         if self.num_classes is not None:
@@ -355,8 +378,8 @@ class ResUNet(nn.Module):
         self.input_blocks = nn.ModuleList(
             [
                 TimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1),
-                    self.image_embed
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                    # self.image_embed
                 )
             ]
         )
@@ -496,6 +519,7 @@ class ResUNet(nn.Module):
 
         hs = []
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        img_emb = self.image_emb(img_emb)
 
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)
@@ -503,7 +527,10 @@ class ResUNet(nn.Module):
 
         h = x.type(self.inner_dtype)
         for module in self.input_blocks:
-            h = module(h, emb, img_emb)
+            if isinstance(module, TimestepEmbedSequential):
+                h = module(h, emb, img_emb)
+            else:
+                h = module(h, emb)
             hs.append(h)
         h = self.middle_block(h, emb)
         for module in self.output_blocks:
@@ -569,9 +596,10 @@ class ControlledUNet(ResUNet):
 
         h = x.type(self.inner_dtype)
         image_emb = image_emb.type(self.inner_dtype)
+        image_emb = self.image_emb(image_emb)
         
         for i, module in enumerate(self.input_blocks):
-            if i==0:
+            if isinstance(module, TimestepEmbedSequential):
                 h = module(h, emb, image_emb)
             else:
                 h = module(h, emb)

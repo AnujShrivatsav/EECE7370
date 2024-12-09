@@ -69,6 +69,14 @@ class DiffusionTrainer:
             persistent_workers=config.data.persistent_workers
         )
 
+        self.val_data_loader = initialize_data_loader(
+            DatasetClass, config, phase=config.test.test_phase,
+            num_workers=config.exp.num_workers, augment_data=False,
+            shuffle=False, repeat=False, collate=config.data.collate_fn,
+            batch_size=config.test.test_batch_size // config.exp.num_gpus,
+            persistent_workers=config.data.persistent_workers
+        )
+        
         # Main network initialization
         logging.info('===> Building model')
         NetClass = load_network(config.net.network)
@@ -143,6 +151,8 @@ class DiffusionTrainer:
             raise Exception("Unknown Sampler.....")
 
         if self.is_master:
+            # Create tensorboard directory if it doesn't exist
+            os.makedirs('tensorboard', exist_ok=True)
             self.writer = SummaryWriter(log_dir='tensorboard')
 
         self.optimizer, self.scheduler = self.configure_optimizers(config)
@@ -211,19 +221,20 @@ class DiffusionTrainer:
 
     def validate(self):
         if not self.skip_validate:
-            val_loss, val_score, _, = test_(self.model, self.val_data_loader, self.config)
+            val_loss, val_score, _, = test_(self.model, None, self.val_data_loader, self.config, if_val= True)
             self.writer.add_scalar('val/loss', val_loss, self.curr_iter)
             self.writer.add_scalar('val/score', val_score, self.curr_iter)
 
             if val_score > self.best:
+                print(f"Validation score {val_score}")
                 self.best = val_score
                 self.best_iter = self.curr_iter
                 checkpoint(self.model, self.optimizer, self.epoch, self.curr_iter, self.config,
                            self.best, self.scaler, postfix="best")
                 logging.info("Current best score: {:.3f} at iter {}".format(self.best, self.best_iter))
 
-        # checkpoint(self.model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
-        # checkpoint_control(self.control_model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
+        checkpoint(self.model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
+        checkpoint_control(self.control_model, self.optimizer, self.epoch, self.curr_iter, self.config, self.best, self.scaler)
 
     def train(self):
         ## To be checked
