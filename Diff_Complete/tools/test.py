@@ -125,10 +125,15 @@ def test(model, control_model, data_loader, config, if_val = False):
 
               # Save rendered image input
               for i in range(len(rendered_images)):
-                  img = rendered_images[i]
-                  img_path = os.path.join(sample_folder,f'input_render_{i}.png')
-                  # Convert numpy array to PIL Image and save
-                  Image.fromarray((img.numpy()).astype(np.uint8)).save(img_path)
+                  for j in range(8): # Iterate through all 8 renderings for each sample
+                    img = rendered_images[i, j]
+                    img_path = os.path.join(sample_folder, f'input_render_{i}_{j}.png')
+                    # Convert numpy array to PIL Image and save
+                    Image.fromarray((img.numpy() * 255).astype(np.uint8)).save(img_path)
+                #   img = rendered_images[i]
+                #   img_path = os.path.join(sample_folder,f'input_render_{i}.png')
+                #   # Convert numpy array to PIL Image and save
+                #   Image.fromarray((img.numpy()).astype(np.uint8)).save(img_path)
 
               if use_ddim:
                   low_samples = diffusion_model.ddim_sample_loop(model=model,
