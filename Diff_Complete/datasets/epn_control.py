@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 from datasets.dataset import DictDataset, DatasetPhase, str2datasetphase_type
 from lib.utils import read_txt
 from PIL import Image
+import random
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -65,10 +66,17 @@ class ControlledEPNDataset(DictDataset):
         return torch.load(filename, weights_only=False)
     
     def load_image(self, filename):
-        random_idx = np.random.randint(0, 5)
-        image_idx = f"{random_idx:02d}"
-        image_path = filename / f"{image_idx}.png"
-        return np.array(Image.open(image_path).convert('RGB'))
+        image_files = [f for f in filename.glob("*.png")]
+        selected_images = random.sample(image_files, 8)
+        images = []
+        for image_file in selected_images:
+            images.append(np.array(Image.open(image_file).convert('RGB')))
+
+        return np.stack(images)
+        # random_idx = np.random.randint(0, 5)
+        # image_idx = f"{random_idx:02d}"
+        # image_path = filename / f"{image_idx}.png"
+        # return np.array(Image.open(image_path).convert('RGB'))
 
     def __len__(self):
         return len(self.data_paths)
