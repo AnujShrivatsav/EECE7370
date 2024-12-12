@@ -3,6 +3,7 @@
 
 import os
 import os.path as osp
+import faulthandler
 import sys
 import torch
 import hydra
@@ -50,4 +51,5 @@ if __name__ == '__main__':
     os.environ['MKL_THREADING_LAYER'] = 'GNU'
     
     # os.environ["OMP_NUM_THREADS"] = "4"
+    faulthandler.enable()
     main()

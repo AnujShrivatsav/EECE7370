@@ -590,17 +590,17 @@ class ControlledUNet(ResUNet):
         emb = self.time_embed(t_emb)
         
         # Reshape and preprocess images, Move preprocessing to GPU
-        B, _, _, _, _ = image.shape
-        image_emb_list = []
-        for i in range(B):
-            pil_images = [Image.fromarray(img.astype(np.uint8)) for img in image[i]]
-            preprocessed_images = torch.stack([self.preprocess(pil_img) for pil_img in pil_images]).to(x.device)
-            batch_emb = self.CLIP_model.encode_image(preprocessed_images)
-            image_emb_list.append(batch_emb.mean(dim=0))
-        # pil_images = [Image.fromarray((img).astype(np.uint8)) for img in image]
-        # preprocessed_images = torch.stack([self.preprocess(pil_img) for pil_img in pil_images]).to(x.device)
-        # image_emb = self.CLIP_model.encode_image(preprocessed_images)
-        image_emb = torch.stack(image_emb_list)
+        # B, _, _, _, _ = image.shape
+        # image_emb_list = []
+        # for i in range(B):
+        #     pil_images = [Image.fromarray(img.astype(np.uint8)) for img in image[i]]
+        #     preprocessed_images = torch.stack([self.preprocess(pil_img) for pil_img in pil_images]).to(x.device)
+        #     batch_emb = self.CLIP_model.encode_image(preprocessed_images)
+        #     image_emb_list.append(batch_emb.mean(dim=0))
+        pil_images = [Image.fromarray((img).astype(np.uint8)) for img in image]
+        preprocessed_images = torch.stack([self.preprocess(pil_img) for pil_img in pil_images]).to(x.device)
+        image_emb = self.CLIP_model.encode_image(preprocessed_images)
+        # image_emb = torch.stack(image_emb_list)
 
         h = x.type(self.inner_dtype)
         image_emb = image_emb.type(self.inner_dtype)

@@ -25,9 +25,28 @@ def distributed_concat(tensor, num_total_examples):
     # truncate the dummy elements added by SequentialDistributedSampler
     return concat[:num_total_examples]
 
-def test(model, control_model, data_loader, config, if_val = False):
+def compute_chamfer_distance(pred, gt):
+    # Convert to binary occupancy grids using threshold of 0.5
+    pred_occ = (pred > 0.5).astype(np.float32)
+    gt_occ = (gt > 0.5).astype(np.float32)
+    
+    # Get occupied points
+    pred_points = np.array(np.where(pred_occ)).T
+    gt_points = np.array(np.where(gt_occ)).T
+    
+    # Convert to torch tensors
+    pred_points = torch.from_numpy(pred_points).float().cuda()
+    gt_points = torch.from_numpy(gt_points).float().cuda()
+    
+    # Compute Chamfer distance
+    pred_to_gt = torch.min(torch.cdist(pred_points, gt_points), dim=1)[0]
+    gt_to_pred = torch.min(torch.cdist(gt_points, pred_points), dim=1)[0]
+    
+    chamfer_dist = torch.mean(pred_to_gt) + torch.mean(gt_to_pred)
+    return chamfer_dist
 
-
+def test(model, control_model, data_loader, config, if_val = True):
+  
   is_master = is_master_proc(config.exp.num_gpus) if config.exp.num_gpus > 1 else True
   cur_device = torch.cuda.current_device()
   global_timer, iter_timer = Timer(), Timer()
@@ -47,13 +66,13 @@ def test(model, control_model, data_loader, config, if_val = False):
 
   # Split test data into different gpus
   total_test_cnt = len(data_loader) // config.exp.num_gpus
-  if if_val:
-      # Randomly sample 3 indices from the range of possible test counts
-      test_indices = random.sample(range(total_test_cnt), min(1, total_test_cnt))
-      test_cnt = len(test_indices)
-  else:
-      test_cnt = total_test_cnt
-      test_indices = range(test_cnt)
+#   if if_val:
+#       # Randomly sample 3 indices from the range of possible test counts
+#       test_indices = random.sample(range(total_test_cnt), min(1, total_test_cnt))
+#       test_cnt = len(test_indices)
+#   else:
+  test_cnt = total_test_cnt
+  test_indices = range(test_cnt)
 
   test_iter = 0
   if control_model is not None:
@@ -98,42 +117,43 @@ def test(model, control_model, data_loader, config, if_val = False):
               bs = observe.size(0)
               noise = None
               model_kwargs = {
-                  'noise_save_path': os.path.join(noise_folder, f'{scan_ids[0]}noise.pt')}
-              model_kwargs["hint"] = observe.to(cur_device) # torch.Size([1, 2, 32, 32, 32])
-              model_kwargs["image"] = rendered_images.numpy()
+                  'noise_save_path': os.path.join(noise_folder, f'{scan_ids[0]}noise.pt'),
+                  'hint': observe.to(cur_device),
+                  'image': rendered_images.numpy()
+              }
 
               # Create sample-specific folder
               sample_folder = os.path.join(save_folder, scan_ids[0])
               os.makedirs(sample_folder, exist_ok=True)
 
               # Save input range scan visualization
-              for i in range(len(observe)):
-                  single_observe = observe[i]
-                  obs_sdf = single_observe[0].numpy()
-                  scan_id = scan_ids[i]
-                  sdf_vertices, sdf_traingles = mcubes.marching_cubes(obs_sdf, 0.5)
-                  out_file = os.path.join(sample_folder, f'input_{i}.obj')
-                  mcubes.export_obj(sdf_vertices, sdf_traingles, out_file)
+            #   for i in range(len(observe)):
+            #       single_observe = observe[i]
+            #       obs_sdf = single_observe[0].numpy()
+            #       scan_id = scan_ids[i]
+            #       sdf_vertices, sdf_traingles = mcubes.marching_cubes(obs_sdf, 0.5)
+            #       out_file = os.path.join(sample_folder, f'input_{i}.obj')
+            #       mcubes.export_obj(sdf_vertices, sdf_traingles, out_file)
 
               # Save ground truth mesh
               gt_df = gt.numpy()
               for i in range(len(gt_df)):
                   gt_single = gt_df[i]
                   vertices, traingles = mcubes.marching_cubes(gt_single, 0.5)
-                  out_file = os.path.join(sample_folder , f'gt_{i}.obj')
+                  out_file = os.path.join(sample_folder , f'gt_{0}.obj')
                   mcubes.export_obj(vertices, traingles, out_file)
 
               # Save rendered image input
               for i in range(len(rendered_images)):
-                  for j in range(8): # Iterate through all 8 renderings for each sample
-                    img = rendered_images[i, j]
-                    img_path = os.path.join(sample_folder, f'input_render_{i}_{j}.png')
+                #   for j in range(8): # Iterate through all 8 renderings for each sample
+                    # img = rendered_images[i, j]
+                    # img_path = os.path.join(sample_folder, f'input_render_{i}_{j}.png')
                     # Convert numpy array to PIL Image and save
-                    Image.fromarray((img.numpy() * 255).astype(np.uint8)).save(img_path)
-                #   img = rendered_images[i]
-                #   img_path = os.path.join(sample_folder,f'input_render_{i}.png')
-                #   # Convert numpy array to PIL Image and save
-                #   Image.fromarray((img.numpy()).astype(np.uint8)).save(img_path)
+                    # Image.fromarray((img.numpy() * 255).astype(np.uint8)).save(img_path)
+                  img = rendered_images[i]
+                  img_path = os.path.join(sample_folder,f'input_render_{i}.png')
+                  # Convert numpy array to PIL Image and save
+                  Image.fromarray((img.numpy()).astype(np.uint8)).save(img_path)
 
               if use_ddim:
                   low_samples = diffusion_model.ddim_sample_loop(model=model,
@@ -167,15 +187,38 @@ def test(model, control_model, data_loader, config, if_val = False):
 
               if if_val:
                   # Calculate validation metrics
-                  # MSE loss between predicted samples and ground truth
                   pred_samples = torch.from_numpy(low_samples).to(cur_device)
                   gt_samples = gt.to(cur_device)
+                  
+                  # MSE loss
                   mse_loss = F.mse_loss(pred_samples, gt_samples)
                   val_loss_meter.update(mse_loss.item(), bs)
                   
-                  # Calculate some score metric (e.g., PSNR or custom metric)
-                  # This is just an example - adjust based on your needs
-                  score = -mse_loss.item()  # Higher score for lower loss
+                  # L1 loss
+                  l1_loss = F.l1_loss(pred_samples, gt_samples)
+                  
+                  # Compute Chamfer distance for each sample in batch
+                  chamfer_distances = []
+                  for i in range(bs):
+                      cd = compute_chamfer_distance(low_samples[i], gt[i].cpu().numpy())
+                      chamfer_distances.append(cd.item())
+                  avg_chamfer = sum(chamfer_distances) / len(chamfer_distances)
+                  
+                  # Store metrics in dictionary
+                  metrics = {
+                      'mse_loss': mse_loss.item(),
+                      'l1_loss': l1_loss.item(),
+                      'chamfer_distance': avg_chamfer
+                  }
+                  
+                  # Save metrics to json file
+                  import json
+                  metrics_file = os.path.join(sample_folder, 'metrics.json')
+                  with open(metrics_file, 'w') as f:
+                      json.dump(metrics, f, indent=4)
+                  
+                  # Use negative MSE as overall score (for backward compatibility)
+                  score = -mse_loss.item()
                   val_score_meter.update(score, bs)
 
   else:
@@ -184,8 +227,11 @@ def test(model, control_model, data_loader, config, if_val = False):
               sign = observe[:, 1].numpy()
               noise = None
               model_kwargs = {
-                  'noise_save_path': os.path.join(noise_folder, f'{scan_id[0]}noise.pt')}
-              model_kwargs["hint"] = observe.to(cur_device)  # torch.Size([1, 2, 32, 32, 32])
+                  'noise_save_path': os.path.join(noise_folder, f'{scan_id[0]}noise.pt'),
+                  'hint': observe.to(cur_device),
+                  'gt': gt.to(cur_device),
+                  'image': rendered_images.numpy()
+              }
 
               if use_ddim:
                   low_samples = diffusion_model.ddim_sample_loop(model=model,
